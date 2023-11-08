@@ -1,3 +1,4 @@
+%%writefile streamlit_app.py
 import streamlit as st
 import pandas as pd
 import random
@@ -10,39 +11,37 @@ def load_data():
     data = pd.read_csv(DATA_URL, sep='\t', encoding='CP949')
     return data
 
-def generate_questions(data, day, question_count):
-    # Filter the data for the specified day
-    day_data = data[data['일자'].str.strip() == day]
+def generate_questions(data, selected_days, question_count):
+    # Filter the data for the selected days
+    selected_data = data[data['일자'].str.strip().isin(selected_days)]
 
-    # Check if day_data is empty or if '단어' column has no valid entries
-    if day_data.empty or '단어' not in day_data.columns or day_data['단어'].isnull().all():
-        raise ValueError(f"No data available for {day}")
+    # Check if selected_data is empty or if '단어' column has no valid entries
+    if selected_data.empty or '단어' not in selected_data.columns or selected_data['단어'].isnull().all():
+        raise ValueError(f"No data available for the selected days")
 
     questions = []
     while len(questions) < question_count:
         question_type = random.choice([1, 2])  # Randomly select question type (1 or 2)
         if question_type == 1:
             # Type 1: "(    ) 영단어는 어떤 의미인가요?"
-            word_row = day_data.sample(1)
+            word_row = selected_data.sample(1)
             word = word_row['단어'].values[0]
             correct_meaning = word_row['뜻'].values[0]
-            options = [correct_meaning] + day_data.sample(4)['뜻'].tolist()
+            options = [correct_meaning] + selected_data.sample(4)['뜻'].tolist()
             random.shuffle(options)
-            question = (f'({len(questions) + 1}) {word} 영단어는 어떤 의미인가요?', correct_meaning, options)
+            question = (f'{word} 영단어는 어떤 의미인가요?', correct_meaning, options)
         else:
             # Type 2: "(   ) 뜻을 가진 영단어는 무엇인가요?"
-            meaning_row = day_data.sample(1)
+            meaning_row = selected_data.sample(1)
             correct_word = meaning_row['단어'].values[0]
             meaning = meaning_row['뜻'].values[0]
-            options = [correct_word] + day_data.sample(4)['단어'].tolist()
+            options = [correct_word] + selected_data.sample(4)['단어'].tolist()
             random.shuffle(options)
-            question = (f'({len(questions) + 1}) {meaning} 뜻을 가진 영단어는 무엇인가요?', correct_word, options)
+            question = (f'{meaning} 뜻을 가진 영단어는 무엇인가요?', correct_word, options)
         if question not in questions:
             questions.append(question)
 
     return questions
-
-
 
 # Streamlit 앱 시작
 def main():
@@ -52,8 +51,8 @@ def main():
     data = load_data()
 
     # 세션 상태 초기화
-    if 'day' not in st.session_state:
-        st.session_state.day = None
+    if 'selected_days' not in st.session_state:
+        st.session_state.selected_days = []
         st.session_state.score = 0
         st.session_state.total_questions = 0
         st.session_state.answered = False  # 정답 확인 여부를 추적하는 상태
@@ -66,6 +65,10 @@ def main():
     # 일자 선택
     selected_day = st.selectbox('일자 선택', data['일자'].unique())
 
+    # Add the selected day to the list of selected days
+    if selected_day not in st.session_state.selected_days:
+        st.session_state.selected_days.append(selected_day)
+
     # 출제 문제 수 입력
     question_count = st.number_input('출제 문제 수', min_value=1, max_value=10)
 
@@ -73,7 +76,7 @@ def main():
     if st.session_state.show_restart_button and st.button('다시 시작'):
         st.session_state.show_restart_button = False
         st.session_state.show_start_button = True
-        st.session_state.day = None
+        st.session_state.selected_days = []
         st.session_state.score = 0
         st.session_state.total_questions = 0
         st.session_state.answered = False
@@ -82,8 +85,7 @@ def main():
 
     # 시작 버튼
     if st.session_state.show_start_button and st.button('시작'):
-        st.session_state.day = selected_day
-        questions = generate_questions(data, st.session_state.day, question_count)
+        questions = generate_questions(data, st.session_state.selected_days, question_count)
         st.session_state.questions = questions
         st.session_state.total_questions = len(questions)
         st.session_state.answered = False
@@ -129,3 +131,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
